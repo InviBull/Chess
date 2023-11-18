@@ -1,73 +1,240 @@
-import pygame as p
-import ChessEngine
+import pygame
 
-WIDTH = HEIGHT = 512
-DIMENSION = 8
-SQ_Size = HEIGHT // DIMENSION
-MAX_FPS = 15
+
+# ChessEngine
+
+class GameState:
+    def __init__(self):
+        self.board = [
+            ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"],
+            ["bP", "bP", "bP", "bP", "bP", "bP", "bP", "bP"],
+            ["--", "--", "--", "--", "--", "--", "--", "--"],
+            ["--", "--", "--", "--", "--", "--", "--", "--"],
+            ["--", "--", "--", "--", "--", "--", "--", "--"],
+            ["--", "--", "--", "--", "--", "--", "--", "--"],
+            ["wP", "wP", "wP", "wP", "wP", "wP", "wP", "wP"],
+            ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
+        ]
+        self.whiteToMove = True
+        self.moveLog = []
+
+    def make_move(self, move, is_enpassant):
+        self.board[move.start_row][move.start_col] = "--"
+        self.board[move.end_row][move.end_col] = move.pieceMoved
+        if is_enpassant == 1:
+            self.board[move.start_row][move.end_col] = "--"
+
+        self.moveLog.append(move)
+        self.whiteToMove = not self.whiteToMove
+
+    def is_valid(self, move):
+        start_row, start_col, end_row, end_col, = move.start_row, move.start_col, move.end_row, move.end_col
+        start, end = move.pieceMoved, move.pieceCaptured
+
+        if (start_row, start_col) == (end_row, end_col):
+            return False, -1
+
+        if self.whiteToMove:
+            if start[0] != "w":
+                return False, -1
+        else:
+            if start[0] != "b":
+                return False, -1
+
+        if end != "--":
+            if start[0] == end[0]:
+                return False, -1
+            if end[1] == "K":
+                return False, -1
+
+        x, y = end_col - start_col, end_row - start_row
+        if start[1] == "P":
+            if abs(x) >= 2 or abs(y) >= 3:
+                return False, -1
+
+            if (start[0] == "w" and y >= 0) or (start[0] == 'b' and y <= 0):
+                return False, -1
+
+            if abs(x) == 1 and abs(y) == 1:
+                if end == "--":
+                    enpassant = self.board[start_row][end_col]
+                    if enpassant == "--" or enpassant[1] != "P" or enpassant[0] == start[0] or enpassant != \
+                            self.moveLog[-1].pieceMoved:
+                        return False, -1
+                    if start_row != 3 and start_row != 4:
+                        return False, -1
+                    if start_row == 3 and enpassant[0] != "b":
+                        return False, -1
+                    if start_row == 4 and enpassant[0] != "w":
+                        return False, -1
+                    if start_row != 3 and start_row != 4:
+                        return False, -1
+                    return True, 1
+            else:
+                if end != "--":
+                    return False, -1
+
+            if abs(y) == 2:
+                if start_row != 1 and start_row != 6:
+                    return False, -1
+                if start_row == 1 and start[0] != "b":
+                    return False, -1
+                if start_row == 6 and start[0] != "w":
+                    return False, -1
+
+        if start[1] == "R":
+            if x != 0 and y != 0:
+                return False, -1
+            if y == 0:
+                for i in range(1, abs(x)):
+                    if self.board[start_row][start_col + i * int(x / abs(x))] != "--":
+                        return False, -1
+            if x == 0:
+                for i in range(1, abs(y)):
+                    if self.board[start_row + i * int(y / abs(y))][start_col] != "--":
+                        return False, -1
+
+        if start[1] == "B":
+            if abs(x) != abs(y):
+                return False, -1
+            for i in range(1, abs(x)):
+                if self.board[start_row + i * int(y / abs(y))][start_col + i * int(x / abs(x))] != "--":
+                    return False, -1
+
+        if start[1] == "N":
+            if not ((abs(x) == 2 and abs(y) == 1) or (abs(x) == 1 and abs(y) == 2)):
+                return False, -1
+
+        if start[1] == "Q":
+            if y == 0:
+                for i in range(1, abs(x)):
+                    if self.board[start_row][start_col + i * int(x / abs(x))] != "--":
+                        return False, -1
+            elif x == 0:
+                for i in range(1, abs(y)):
+                    if self.board[start_row + i * int(y / abs(y))][start_col] != "--":
+                        return False, -1
+            elif abs(x) == abs(y):
+                for i in range(1, abs(x)):
+                    if self.board[start_row + i * int(y / abs(y))][start_col + i * int(x / abs(x))] != "--":
+                        return False, -1
+            else:
+                return False, -1
+
+        if start[1] == "K":
+            is_castle = False
+            if abs(x) > 1 or abs(y) > 1:
+                if abs(x) != 2 and abs(y) != 0:
+                    return False, -1
+                else:
+                    is_castle = True
+
+            # Check if end is being attacked by a piece or if the castle squares are covered
+
+        return True, 0
+
+
+class Move:
+    ranksToRows = {"1": 7, "2": 6, "3": 5, "4": 4, "5": 3, "6": 2, "7": 1, "8": 0}
+    rowsToRanks = {v: k for k, v in ranksToRows.items()}
+
+    filesToCols = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
+    colsToFiles = {v: k for k, v in filesToCols.items()}
+
+    def __init__(self, start_sq, end_sq, board):
+        self.start_row = start_sq[0]
+        self.start_col = start_sq[1]
+        self.end_row = end_sq[0]
+        self.end_col = end_sq[1]
+        self.board = board
+        self.pieceMoved = board[self.start_row][self.start_col]
+        self.pieceCaptured = board[self.end_row][self.end_col]
+
+    def get_rank_file(self, r, c):
+        return self.colsToFiles[c] + self.rowsToRanks[r]
+
+    def get_chess_notation(self):
+        return self.get_rank_file(self.start_row, self.start_col) + self.get_rank_file(self.end_row, self.end_col)
+
+
+#####
+
+
+WW = WH = 512
+SQ_Size = WH // 8
+FPS = 15
 IMAGES = {}
 
-def loadImages():
-    pieces = ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR", "bP","wP", "wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
+
+def load_images():
+    pieces = ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR", "bP", "wP", "wR", "wN", "wB", "wQ", "wK", "wB", "wN",
+              "wR"]
     for piece in pieces:
-        
-        IMAGES[piece] = p.transform.scale(p.image.load("images/" + piece + ".png"), (SQ_Size, SQ_Size))
+        IMAGES[piece] = pygame.transform.scale(pygame.image.load("images/" + piece + ".png"), (SQ_Size, SQ_Size))
+
+
+def draw_game_state(screen, gs):
+    draw_board(screen)
+    draw_pieces(screen, gs.board)
+
+
+def draw_board(screen):
+    colors = [(235, 235, 208), (119, 148, 85)]
+    for r in range(8):
+        for c in range(8):
+            color = colors[((r + c) % 2)]
+            pygame.draw.rect(screen, color, pygame.Rect(c * SQ_Size, r * SQ_Size, SQ_Size, SQ_Size))
+
+
+def draw_pieces(screen, board):
+    for r in range(8):
+        for c in range(8):
+            piece = board[r][c]
+            if piece != "--":
+                screen.blit(IMAGES[piece], pygame.Rect(c * SQ_Size, r * SQ_Size, SQ_Size, SQ_Size))
 
 
 def main():
-    p.init()
-    screen = p.display.set_mode((WIDTH, HEIGHT))
-    clock = p.time.Clock()
-    screen.fill(p.Color("white"))
-    gs = ChessEngine.GameState()
-    loadImages()
+    pygame.init()
+    screen = pygame.display.set_mode((WW, WH))
+    clock = pygame.time.Clock()
+    screen.fill(pygame.Color("white"))
+    gs = GameState()
+    load_images()
     running = True
-    sqSelected = ()
-    playerClicks = []
+    sq_selected = ()
+    player_clicks = []
 
     while running:
-        for e in p.event.get():
-            if e.type == p.QUIT:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
                 running = False
-            elif e.type == p.MOUSEBUTTONDOWN:
-                location = p.mouse.get_pos()
-                col = location[0]//SQ_Size
-                row = location[1]//SQ_Size
-                if sqSelected == (row, col):
-                    sqSelected = ()
-                    playerClicks = []
+            elif e.type == pygame.MOUSEBUTTONDOWN:
+                location = pygame.mouse.get_pos()
+                col = location[0] // SQ_Size
+                row = location[1] // SQ_Size
+                if sq_selected == (row, col):
+                    sq_selected = ()
+                    player_clicks = []
                 else:
-                    sqSelected = (row,col)
-                    playerClicks.append(sqSelected)
-                if len(playerClicks) == 2:
-                    move = ChessEngine.Move(playerClicks[0], playerClicks[1], gs.board)
-                    print(move.getChessNotation())
-                    gs.makeMove(move)
-                    sqSelected = ()
-                    playerClicks = []
-                    
+                    sq_selected = (row, col)
+                    player_clicks.append(sq_selected)
+                if len(player_clicks) == 2:
+                    move = Move(player_clicks[0], player_clicks[1], gs.board)
+                    is_valid = gs.is_valid(move)
+                    if is_valid[0]:
+                        gs.make_move(move, is_valid[1])
+                        print(move.get_chess_notation())
+                    else:
+                        print("Invalid!!")
 
-        drawGameState(screen, gs)
-        clock.tick(MAX_FPS)
-        p.display.flip()
+                    sq_selected = ()
+                    player_clicks = []
 
-def drawGameState(screen, gs):
-    drawBoard(screen)
-    drawPieces(screen, gs.board)
+        draw_game_state(screen, gs)
+        clock.tick(FPS)
+        pygame.display.flip()
 
-def drawBoard(screen):
-    colors = [(235, 235, 208), (119, 148, 85)]
-    for r in range(DIMENSION):
-        for c in range(DIMENSION):
-            color = colors[((r+c)%2)]
-            p.draw.rect(screen, color, p.Rect(c*SQ_Size, r*SQ_Size, SQ_Size, SQ_Size))
-
-def drawPieces(screen, board):
-    for r in range(DIMENSION):
-        for c in range(DIMENSION):
-            piece = board[r][c]
-            if piece != "--":
-                screen.blit(IMAGES[piece], p.Rect(c*SQ_Size, r*SQ_Size, SQ_Size, SQ_Size))
 
 if __name__ == "__main__":
     main()
