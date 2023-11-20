@@ -27,6 +27,148 @@ class GameState:
         self.moveLog.append(move)
         self.whiteToMove = not self.whiteToMove
 
+    def get_sq_covered(self):
+        sqs_covered = [
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+        ]
+        for i, x in enumerate(self.board):
+            for j, y in enumerate(x):
+                start_row, start_col = i, j
+                start = y
+                if start[1] == "P":
+                    if start[0] == "w":
+                        try:
+                            sqs_covered[start_row - 1][start_col + 1] += "w"
+                        except IndexError:
+                            pass
+                        try:
+                            sqs_covered[start_row - 1][start_col - 1] += "w"
+                        except IndexError:
+                            pass
+                    if start[0] == "b":
+                        try:
+                            sqs_covered[start_row + 1][start_col + 1] += "b"
+                        except IndexError:
+                            pass
+                        try:
+                            sqs_covered[start_row + 1][start_col - 1] += "b"
+                        except IndexError:
+                            pass
+                if start[1] == "R" or start[1] == "Q":
+                    for c in range(0, j):
+                        sqs_covered[start_row][c] += start[0]
+                        if self.board[start_row][c] != "--":
+                            break
+                    for c in range(j, 8):
+                        sqs_covered[start_row][c] += start[0]
+                        if self.board[start_row][c] != "--":
+                            break
+                    for c in range(0, i):
+                        sqs_covered[c][start_col] += start[0]
+                        if self.board[c][start_col] != "--":
+                            break
+                    for c in range(i, 8):
+                        sqs_covered[c][start_col] += start[0]
+                        if self.board[c][start_col] != "--":
+                            break
+                if start[1] == "B" or start[1] == "Q":
+                    for c in range(0, min(8 - i, 8 - j)):
+                        sqs_covered[i + c][j + c] += start[0]
+                        if self.board[i + c][j + c] != "--":
+                            break
+                    for c in range(0, min(i, 8 - j)):
+                        sqs_covered[i - c][j + c] += start[0]
+                        if self.board[i - c][j + c] != "--":
+                            break
+                    for c in range(0, min(8 - i, j)):
+                        sqs_covered[i + c][j - c] += start[0]
+                        if self.board[i + c][j - c] != "--":
+                            break
+                    for c in range(0, min(i, j)):
+                        sqs_covered[i - c][j - c] += start[0]
+                        if self.board[i - c][j - c] != "--":
+                            break
+                if start[1] == "N":
+                    try:
+                        sqs_covered[i + 2][j + 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 2][j + 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 2][j - 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i + 2][j - 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i + 1][j + 2] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i + 1][j - 2] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 1][j + 2] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 1][j + 2] += start[0]
+                    except IndexError:
+                        pass
+                if start[1] == "K":
+                    try:
+                        sqs_covered[i + 1][j + 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i + 1][j] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i + 1][j - 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i][j - 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 1][j - 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 1][j] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i - 1][j + 1] += start[0]
+                    except IndexError:
+                        pass
+                    try:
+                        sqs_covered[i][j + 1] += start[0]
+                    except IndexError:
+                        pass
+
+        for i, x in enumerate(self.board):
+            for j, y in enumerate(x):
+                if sqs_covered[i][j].count("w") >= 1 and sqs_covered[i][j].count("b") >= 1:
+                    sqs_covered[i][j] = "None"
+        print(sqs_covered)
+        return sqs_covered
+
     def is_valid(self, move):
         start_row, start_col, end_row, end_col, = move.start_row, move.start_col, move.end_row, move.end_col
         start, end = move.pieceMoved, move.pieceCaptured
@@ -124,12 +266,13 @@ class GameState:
         if start[1] == "K":
             is_castle = False
             if abs(x) > 1 or abs(y) > 1:
-                if abs(x) != 2 and abs(y) != 0:
-                    return False, -1
-                else:
+                if abs(x) == 2 and abs(y) == 0:
                     is_castle = True
-
-            # Check if end is being attacked by a piece or if the castle squares are covered
+                else:
+                    return False, -1
+            sqs_covered = self.get_sq_covered()
+            if sqs_covered[end_row][end_col] == "None" or sqs_covered[end_row][end_col] != start[0]:
+                return False, -1
 
         return True, 0
 
