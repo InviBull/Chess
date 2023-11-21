@@ -7,7 +7,8 @@ IMAGES = {}
 
 
 def load_images():
-    pieces = ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR", "bP", "wP", "wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
+    pieces = [
+        "bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR", "bP", "wP", "wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
     for piece in pieces:
         IMAGES[piece] = pygame.transform.scale(pygame.image.load(f"images/{piece}.png"), (SQ_Size, SQ_Size))
 
@@ -32,6 +33,98 @@ def draw_pieces(screen, board):
                 screen.blit(IMAGES[piece], pygame.Rect(c * SQ_Size, r * SQ_Size, SQ_Size, SQ_Size))
 
 
+def get_sq_covered(board):
+    is_check = False
+    sqs_covered = [[""] * 8 for _ in range(8)]
+
+    for i, row in enumerate(board):
+        for j, start in enumerate(row):
+            if start[1] == "P":
+                directions = [(-1, 1), (-1, -1)] if start[0] == "w" else [(1, 1), (1, -1)]
+
+                for direction in directions:
+                    try:
+                        sqs_covered[i + direction[0]][j + direction[1]] += start[0]
+                        d = board[i + direction[0]][j + direction[1]][1]
+                        if d[1] == "K" and d[0] != start[0]:
+                            is_check = True
+                    except IndexError:
+                        pass
+
+            if start[1] in {"R", "Q"}:
+                for c in range(j, 0, -1):
+                    sqs_covered[i][c] += start[0]
+                    d = board[i][c]
+                    if d != "--":
+                        break
+                    if d[1] == "K" and d[0] != start[0]:
+                        is_check = True
+                for c in range(j+1, 8):
+                    sqs_covered[i][c] += start[0]
+                    d = board[i][c]
+                    if d != "--":
+                        break
+                    if d[1] == "K" and d[0] != start[0]:
+                        is_check = True
+                for c in range(i, 0, -1):
+                    sqs_covered[c][j] += start[0]
+                    d = board[c][j]
+                    if d != "--":
+                        break
+                    if d[1] == "K" and d[0] != start[0]:
+                        is_check = True
+                for c in range(i+1, 8):
+                    sqs_covered[c][j] += start[0]
+                    d = board[c][j]
+                    if d != "--":
+                        break
+                    if d[1] == "K" and d[0] != start[0]:
+                        is_check = True
+
+            if start[1] in {"B", "Q"}:
+                directions = [(1, 1), (-1, 1), (1, -1), (-1, -1)]
+                for direction in directions:
+                    for c in range(1, min(8 - i, 8 - j)) if direction[0] == 1 and direction[1] == 1 else range(
+                            1, min(i, 8 - j)) if direction[0] == -1 and direction[1] == 1 else range(
+                            1, min(8 - i, j)) if direction[0] == 1 and direction[1] == -1 else range(
+                            1, min(i, j)):
+                        sqs_covered[i + c * direction[0]][j + c * direction[1]] += start[0]
+                        d = board[i + c * direction[0]][j + c * direction[1]]
+                        if d != "--":
+                            break
+                        if d[1] == "K" and d[0] != start[0]:
+                            is_check = True
+
+            if start[1] == "N":
+                knight_moves = [(2, 1), (-2, 1), (-2, -1), (2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)]
+                for move in knight_moves:
+                    try:
+                        sqs_covered[i + move[0]][j + move[1]] += start[0]
+                        d = board[i + move[0]][j + move[1]]
+                        if d[1] == "K" and d[0] != start[0]:
+                            is_check = True
+                    except IndexError:
+                        pass
+
+            if start[1] == "K":
+                king_moves = [(1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1)]
+                for move in king_moves:
+                    try:
+                        sqs_covered[i + move[0]][j + move[1]] += start[0]
+                    except IndexError:
+                        pass
+
+    for i, row in enumerate(sqs_covered):
+        for j, col in enumerate(row):
+            if "w" in col and "b" in col:
+                sqs_covered[i][j] = "None"
+            elif "w" in col:
+                sqs_covered[i][j] = "w"
+            elif "b" in col:
+                sqs_covered[i][j] = "b"
+    return sqs_covered, is_check
+
+
 class GameState:
     def __init__(self):
         self.board = [
@@ -52,97 +145,6 @@ class GameState:
         self.moveLog.append(move)
         self.whiteToMove = not self.whiteToMove
 
-    def get_sq_covered(self, board):
-        isCheck = False
-        sqs_covered = [[""] * 8 for _ in range(8)]
-
-        for i, row in enumerate(board):
-            for j, start in enumerate(row):
-                if start[1] == "P":
-                    directions = [(-1, 1), (-1, -1)] if start[0] == "w" else [(1, 1), (1, -1)]
-
-                    for direction in directions:
-                        try:
-                            sqs_covered[i + direction[0]][j + direction[1]] += start[0]
-                            d = board[i + direction[0]][j + direction[1]][1]
-                            if d[1] == "K" and d[0] != start[0]:
-                                isCheck = True
-                        except IndexError:
-                            pass
-
-                if start[1] in {"R", "Q"}:
-                    for c in range(j, 0, -1):
-                        sqs_covered[i][c] += start[0]
-                        d = board[i][c]
-                        if d != "--":
-                            break
-                        if d[1] == "K" and d[0] != start[0]:
-                            isCheck = True
-                    for c in range(j+1, 8):
-                        sqs_covered[i][c] += start[0]
-                        d = board[i][c]
-                        if d != "--":
-                            break
-                        if d[1] == "K" and d[0] != start[0]:
-                            isCheck = True
-                    for c in range(i, 0, -1):
-                        sqs_covered[c][j] += start[0]
-                        d = board[c][j]
-                        if d != "--":
-                            break
-                        if d[1] == "K" and d[0] != start[0]:
-                            isCheck = True
-                    for c in range(i+1, 8):
-                        sqs_covered[c][j] += start[0]
-                        d = board[c][j]
-                        if d != "--":
-                            break
-                        if d[1] == "K" and d[0] != start[0]:
-                            isCheck = True
-
-                if start[1] in {"B", "Q"}:
-                    directions = [(1, 1), (-1, 1), (1, -1), (-1, -1)]
-                    for direction in directions:
-                        for c in range(1, min(8 - i, 8 - j)) if direction[0] == 1 and direction[1] == 1 else range(
-                                1, min(i, 8 - j)) if direction[0] == -1 and direction[1] == 1 else range(
-                                1, min(8 - i, j)) if direction[0] == 1 and direction[1] == -1 else range(
-                                1, min(i, j)):
-                            sqs_covered[i + c * direction[0]][j + c * direction[1]] += start[0]
-                            d = board[i + c * direction[0]][j + c * direction[1]]
-                            if d != "--":
-                                break
-                            if d[1] == "K" and d[0] != start[0]:
-                                isCheck = True
-
-                if start[1] == "N":
-                    knight_moves = [(2, 1), (-2, 1), (-2, -1), (2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)]
-                    for move in knight_moves:
-                        try:
-                            sqs_covered[i + move[0]][j + move[1]] += start[0]
-                            d = board[i + move[0]][j + move[1]]
-                            if d[1] == "K" and d[0] != start[0]:
-                                isCheck = True
-                        except IndexError:
-                            pass
-
-                if start[1] == "K":
-                    king_moves = [(1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1)]
-                    for move in king_moves:
-                        try:
-                            sqs_covered[i + move[0]][j + move[1]] += start[0]
-                        except IndexError:
-                            pass
-
-        for i, row in enumerate(sqs_covered):
-            for j, col in enumerate(row):
-                if "w" in col and "b" in col:
-                    sqs_covered[i][j] = "None"
-                elif "w" in col:
-                    sqs_covered[i][j] = "w"
-                elif "b" in col:
-                    sqs_covered[i][j] = "b"
-        return sqs_covered, isCheck
-
     def is_valid(self, move):
         start_row, start_col, end_row, end_col = move.start_row, move.start_col, move.end_row, move.end_col
         start, end = move.pieceMoved, move.pieceCaptured
@@ -160,7 +162,7 @@ class GameState:
             return False, -1
 
         x, y = end_col - start_col, end_row - start_row
-        sqs_covered, isCheck = self.get_sq_covered(self.board)
+        sqs_covered, is_check = get_sq_covered(self.board)
 
         if start[1] == "P":
             if abs(x) >= 2 or abs(y) >= 3:
@@ -230,10 +232,10 @@ class GameState:
             if sqs_covered[end_row][end_col] not in {"--", start[0]}:
                 return False, -1
 
-        if isCheck:
+        if is_check:
             board = self.board
             board[move.start_row][move.start_col], board[move.end_row][move.end_col] = "--", move.pieceMoved
-            if not self.get_sq_covered(board)[1]:
+            if not get_sq_covered(board)[1]:
                 return False, -1
 
         return True, 0
